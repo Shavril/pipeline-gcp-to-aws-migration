@@ -1,0 +1,76 @@
+[project]
+name = "pipeline-gcp-to-aws-migration"
+version = "0.1.0"
+description = "AWS port of GCP texas-oil-data-platform: same inputs and Looker Studio output, different cloud backend."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dagster>=1.13.17",
+    "duckdb>=1.5.5",
+    # TODO(phase 1): replace with boto3 once S3 replaces GCS (see CLAUDE.md).
+    "google-cloud-bigquery>=3.42.3",
+    "google-cloud-storage>=3.13.0",
+    "pandas>=2.3.3",
+    "pandera>=0.32.1",
+    "pyarrow>=25.0.0",
+    "pydantic-settings>=2.15.0",
+]
+
+[dependency-groups]
+dev = [
+    "dagster-webserver>=1.13.17",
+    "mypy>=2.3.0",
+    "pandas-stubs>=2.3.3.260113",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oil_pipeline"]
+
+[tool.dagster]
+module_name = "definitions"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+# smoke tests need the real ~11 GB raw tapes and real cloud access -- excluded
+# by default so plain `pytest`/`uv run pytest` stays fast and needs neither.
+# Run them explicitly with `pytest -m smoke`.
+addopts = "-m 'not smoke'"
+markers = [
+    "smoke: opt-in end-to-end run against real raw files and real cloud infrastructure",
+]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["src", "definitions.py"]
+# pydantic's own plugin teaches mypy that Settings() below gets its fields
+# from env vars / .env, not constructor arguments -- without it, every
+# required-with-no-default field looks like a missing argument.
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # import sorting
+    "UP",  # pyupgrade
+    "B",   # bugbear (likely real bugs)
+    "SIM", # simplify
+]
+
+[tool.coverage.run]
+source = ["src/oil_pipeline"]
+
+[tool.coverage.report]
+show_missing = true

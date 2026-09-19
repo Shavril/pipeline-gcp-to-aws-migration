@@ -157,6 +157,41 @@ ENV/
 env.bak/
 venv.bak/
 
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/crash.log
+
+# Project raw data (Pipeline GCP -> AWS Migration)
+#   Never commit raw RRC extracts (large, and CLAUDE.md forbids it), but keep
+#   the data/raw/<subfolder>/.gitkeep files so the folder scaffolding is
+#   preserved for anyone cloning the repo.
+data/raw/**
+!data/raw/**/
+!data/raw/**/.gitkeep
+
+# Project database files (Pipeline GCP -> AWS Migration)
+#   DuckDB table files are large, regenerable local artifacts -- never
+#   commit them, but keep the folder scaffolding via .gitkeep.
+data/database/**
+!data/database/**/
+!data/database/**/.gitkeep
+
+# Dagster (Pipeline GCP -> AWS Migration)
+#   Local run/event storage. `dagster dev`/`dagster definitions validate`
+#   create a throwaway one of these per invocation unless DAGSTER_HOME is set.
+.tmp_dagster_home_*/
+.dagster_home/
+
+# Project processed data (Pipeline GCP -> AWS Migration)
+#   Parquet outputs are regenerable from the DuckDB tables -- never commit
+#   them, but keep the folder scaffolding via .gitkeep.
+data/processed/**
+!data/processed/**/
+!data/processed/**/.gitkeep
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -186,7 +221,10 @@ cython_debug/
 #   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #   and can be added to the global gitignore or merged into this file.  For a more nuclear
 #   option (not recommended) you can uncomment the following to ignore the entire idea folder.
-# .idea/
+.idea/
+
+# Windows folder view metadata
+/desktop.ini
 
 # Abstra
 #   Abstra is an AI-powered process automation framework.
