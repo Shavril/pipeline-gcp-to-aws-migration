@@ -15,8 +15,9 @@ REQUIRED_ENV = {
     "OIL_PIPELINE_WELLS_DB_PATH": "data/database/wells.duckdb",
     "OIL_PIPELINE_PROCESSED_DATA_PATH": "data/processed",
     "OIL_PIPELINE_GCP_PROJECT_ID": "texas-oil-data-platform",
-    "OIL_PIPELINE_GCS_BUCKET_NAME": "texas-oil-data-platform",
     "OIL_PIPELINE_BQ_DATASET": "analytics",
+    "OIL_PIPELINE_AWS_REGION": "us-east-1",
+    "OIL_PIPELINE_S3_BUCKET_NAME": "pipeline-gcp-to-aws-migration",
 }
 
 

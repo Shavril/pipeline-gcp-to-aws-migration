@@ -1,7 +1,9 @@
 """Data pipeline assets: extract/validate -> DuckDB -> transform/validate ->
-Parquet -> GCS -> BigQuery tables. (Analytics views live in view_assets.py
--- a separate, growing file of BigQuery-warehouse-facing view assets, kept
-apart from this data-flow file to avoid clutter.)
+Parquet -> S3. (The bigquery_imports group below is a Phase 1 holdover --
+see the comment above oil_production_bigquery -- pending its Phase 2
+replacement with Redshift-from-S3 loaders; analytics views live in
+view_assets.py, a separate, growing file of BigQuery-warehouse-facing view
+assets, kept apart from this data-flow file to avoid clutter.)
 
 Each asset's body is the pipeline logic itself (extract/validate, transform/
 validate, save, upload, load), not a delegate call elsewhere. Dagster
@@ -52,8 +54,8 @@ from oil_pipeline.extract.production import load_pdf100
 from oil_pipeline.extract.wells import load_dbf900
 from oil_pipeline.load.bigquery import load_parquet_to_bigquery, run_bigquery_sql
 from oil_pipeline.load.duckdb import save_tables
-from oil_pipeline.load.gcs import upload_to_gcs
 from oil_pipeline.load.parquet import save_parquet
+from oil_pipeline.load.s3 import upload_to_s3
 from oil_pipeline.transform.districts import DISTRICT_ID_BY_CODE, build_district_lookup_sql
 from oil_pipeline.transform.lease_operators import build_lease_operators
 from oil_pipeline.transform.oil_production import build_oil_production
@@ -82,8 +84,10 @@ WELLS_DB_PATH = settings.wells_db_path
 PROCESSED_DATA_PATH = settings.processed_data_path
 
 GCP_PROJECT_ID = settings.gcp_project_id
-GCS_BUCKET_NAME = settings.gcs_bucket_name
 BQ_DATASET = settings.bq_dataset
+
+AWS_REGION = settings.aws_region
+S3_BUCKET_NAME = settings.s3_bucket_name
 
 
 def _scalar_count(con: duckdb.DuckDBPyConnection, sql: str) -> int:
@@ -396,18 +400,18 @@ def wells_parquet(wells: pd.DataFrame) -> MaterializeResult:
 
 
 @asset(
-    group_name="gcs_cloud_storage",
+    group_name="s3_cloud_storage",
 )
-def oil_production_gcs(oil_production_parquet: Path) -> MaterializeResult:
-    """Upload the Parquet file to GCS Cloud Storage"""
+def oil_production_s3(oil_production_parquet: Path) -> MaterializeResult:
+    """Upload the Parquet file to S3"""
     start = time.perf_counter()
-    blob_name = "oil_production.parquet"
-    upload_to_gcs(oil_production_parquet, GCS_BUCKET_NAME, blob_name, project=GCP_PROJECT_ID)
-    gcs_uri = f"gs://{GCS_BUCKET_NAME}/{blob_name}"
+    key = "oil_production.parquet"
+    upload_to_s3(oil_production_parquet, S3_BUCKET_NAME, key, region=AWS_REGION)
+    s3_uri = f"s3://{S3_BUCKET_NAME}/{key}"
     print()
-    print(f"Uploaded {oil_production_parquet} -> {gcs_uri}")
+    print(f"Uploaded {oil_production_parquet} -> {s3_uri}")
     return MaterializeResult(
-        value=gcs_uri,
+        value=s3_uri,
         metadata={
             "file_size_bytes": oil_production_parquet.stat().st_size,
             "duration_seconds": round(time.perf_counter() - start, 2),
@@ -416,18 +420,18 @@ def oil_production_gcs(oil_production_parquet: Path) -> MaterializeResult:
 
 
 @asset(
-    group_name="gcs_cloud_storage",
+    group_name="s3_cloud_storage",
 )
-def lease_operators_gcs(lease_operators_parquet: Path) -> MaterializeResult:
-    """Upload the Parquet file to GCS Cloud Storage"""
+def lease_operators_s3(lease_operators_parquet: Path) -> MaterializeResult:
+    """Upload the Parquet file to S3"""
     start = time.perf_counter()
-    blob_name = "lease_operators.parquet"
-    upload_to_gcs(lease_operators_parquet, GCS_BUCKET_NAME, blob_name, project=GCP_PROJECT_ID)
-    gcs_uri = f"gs://{GCS_BUCKET_NAME}/{blob_name}"
+    key = "lease_operators.parquet"
+    upload_to_s3(lease_operators_parquet, S3_BUCKET_NAME, key, region=AWS_REGION)
+    s3_uri = f"s3://{S3_BUCKET_NAME}/{key}"
     print()
-    print(f"Uploaded {lease_operators_parquet} -> {gcs_uri}")
+    print(f"Uploaded {lease_operators_parquet} -> {s3_uri}")
     return MaterializeResult(
-        value=gcs_uri,
+        value=s3_uri,
         metadata={
             "file_size_bytes": lease_operators_parquet.stat().st_size,
             "duration_seconds": round(time.perf_counter() - start, 2),
@@ -436,18 +440,18 @@ def lease_operators_gcs(lease_operators_parquet: Path) -> MaterializeResult:
 
 
 @asset(
-    group_name="gcs_cloud_storage",
+    group_name="s3_cloud_storage",
 )
-def wells_gcs(wells_parquet: Path) -> MaterializeResult:
-    """Upload the Parquet file to GCS Cloud Storage"""
+def wells_s3(wells_parquet: Path) -> MaterializeResult:
+    """Upload the Parquet file to S3"""
     start = time.perf_counter()
-    blob_name = "wells.parquet"
-    upload_to_gcs(wells_parquet, GCS_BUCKET_NAME, blob_name, project=GCP_PROJECT_ID)
-    gcs_uri = f"gs://{GCS_BUCKET_NAME}/{blob_name}"
+    key = "wells.parquet"
+    upload_to_s3(wells_parquet, S3_BUCKET_NAME, key, region=AWS_REGION)
+    s3_uri = f"s3://{S3_BUCKET_NAME}/{key}"
     print()
-    print(f"Uploaded {wells_parquet} -> {gcs_uri}")
+    print(f"Uploaded {wells_parquet} -> {s3_uri}")
     return MaterializeResult(
-        value=gcs_uri,
+        value=s3_uri,
         metadata={
             "file_size_bytes": wells_parquet.stat().st_size,
             "duration_seconds": round(time.perf_counter() - start, 2),
@@ -455,17 +459,27 @@ def wells_gcs(wells_parquet: Path) -> MaterializeResult:
     )
 
 
+# The three assets below (plus district_lookup_table) are wired to
+# oil_production_s3/lease_operators_s3/wells_s3 only so Dagster's
+# parameter-name dependency inference keeps the asset graph valid -- they are
+# NOT functional right now. BigQuery load jobs can only read from gs://
+# URIs, not s3://, so calling these against a real GCP project will fail.
+# They're excluded from data_refresh_job (see definitions.py) for that
+# reason and will be replaced outright by Redshift-from-S3 loaders in
+# Phase 2.
+
+
 @asset(
     group_name="bigquery_imports",
 )
-def oil_production_bigquery(oil_production_gcs: str) -> MaterializeResult:
+def oil_production_bigquery(oil_production_s3: str) -> MaterializeResult:
     """Loads the oil_production Parquet file from GCS into its BigQuery table."""
     start = time.perf_counter()
     row_count = load_parquet_to_bigquery(
-        oil_production_gcs, project=GCP_PROJECT_ID, dataset=BQ_DATASET, table="oil_production"
+        oil_production_s3, project=GCP_PROJECT_ID, dataset=BQ_DATASET, table="oil_production"
     )
     print()
-    print(f"Loaded {oil_production_gcs} -> {GCP_PROJECT_ID}.{BQ_DATASET}.oil_production")
+    print(f"Loaded {oil_production_s3} -> {GCP_PROJECT_ID}.{BQ_DATASET}.oil_production")
     return MaterializeResult(
         metadata={
             "records_written": row_count,
@@ -477,14 +491,14 @@ def oil_production_bigquery(oil_production_gcs: str) -> MaterializeResult:
 @asset(
     group_name="bigquery_imports",
 )
-def lease_operators_bigquery(lease_operators_gcs: str) -> MaterializeResult:
+def lease_operators_bigquery(lease_operators_s3: str) -> MaterializeResult:
     """Loads the lease_operators Parquet file from GCS into its BigQuery table."""
     start = time.perf_counter()
     row_count = load_parquet_to_bigquery(
-        lease_operators_gcs, project=GCP_PROJECT_ID, dataset=BQ_DATASET, table="lease_operators"
+        lease_operators_s3, project=GCP_PROJECT_ID, dataset=BQ_DATASET, table="lease_operators"
     )
     print()
-    print(f"Loaded {lease_operators_gcs} -> {GCP_PROJECT_ID}.{BQ_DATASET}.lease_operators")
+    print(f"Loaded {lease_operators_s3} -> {GCP_PROJECT_ID}.{BQ_DATASET}.lease_operators")
     return MaterializeResult(
         metadata={
             "records_written": row_count,
@@ -496,12 +510,12 @@ def lease_operators_bigquery(lease_operators_gcs: str) -> MaterializeResult:
 @asset(
     group_name="bigquery_imports",
 )
-def wells_bigquery(wells_gcs: str) -> MaterializeResult:
+def wells_bigquery(wells_s3: str) -> MaterializeResult:
     """Loads the wells Parquet file from GCS into its BigQuery table."""
     start = time.perf_counter()
-    row_count = load_parquet_to_bigquery(wells_gcs, project=GCP_PROJECT_ID, dataset=BQ_DATASET, table="wells")
+    row_count = load_parquet_to_bigquery(wells_s3, project=GCP_PROJECT_ID, dataset=BQ_DATASET, table="wells")
     print()
-    print(f"Loaded {wells_gcs} -> {GCP_PROJECT_ID}.{BQ_DATASET}.wells")
+    print(f"Loaded {wells_s3} -> {GCP_PROJECT_ID}.{BQ_DATASET}.wells")
     return MaterializeResult(
         metadata={
             "records_written": row_count,

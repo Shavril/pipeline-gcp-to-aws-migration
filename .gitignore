@@ -165,8 +165,8 @@ terraform/*.tfvars
 terraform/crash.log
 
 # Project raw data (Pipeline GCP -> AWS Migration)
-#   Never commit raw RRC extracts (large, and CLAUDE.md forbids it), but keep
-#   the data/raw/<subfolder>/.gitkeep files so the folder scaffolding is
+#   Never commit raw RRC extracts (large), but keep the
+#   data/raw/<subfolder>/.gitkeep files so the folder scaffolding is
 #   preserved for anyone cloning the repo.
 data/raw/**
 !data/raw/**/

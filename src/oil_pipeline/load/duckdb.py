@@ -1,8 +1,7 @@
 """Persist DataFrames into a local DuckDB database file.
 
 Physical database files live under data/database/ (excluded from git, see
-.gitignore), consistent with CLAUDE.md's "Development: Parquet files,
-DuckDB" storage guidance.
+.gitignore).
 """
 
 import logging

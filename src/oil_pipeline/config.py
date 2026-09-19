@@ -31,9 +31,13 @@ class Settings(BaseSettings):
     wells_db_path: Path
     processed_data_path: Path
 
+    # GCP settings kept until Phase 2 replaces load/bigquery.py with Redshift
+    # -- district_lookup_table, star_schema_assets, and view_assets still load into/query BigQuery.
     gcp_project_id: str
-    gcs_bucket_name: str
     bq_dataset: str
+
+    aws_region: str
+    s3_bucket_name: str
 
 
 @lru_cache

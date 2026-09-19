@@ -3,7 +3,7 @@
 Every transform here is a pure function of its input (no current-time,
 random, or external state), and every write in load/ is a full replace --
 CREATE OR REPLACE (DuckDB, BigQuery), WRITE_TRUNCATE (BigQuery load jobs), or
-overwrite-by-fixed-name (Parquet, GCS) -- never an append. So running any
+overwrite-by-fixed-name (Parquet, S3) -- never an append. So running any
 stage twice on the same input must produce exactly the same output, not
 duplicates. These tests assert that directly rather than leaving it implicit
 in the load/*.py docstrings.
