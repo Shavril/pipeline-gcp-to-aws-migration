@@ -31,13 +31,17 @@ class Settings(BaseSettings):
     wells_db_path: Path
     processed_data_path: Path
 
-    # GCP settings kept until Phase 2 replaces load/bigquery.py with Redshift
-    # -- district_lookup_table, star_schema_assets, and view_assets still load into/query BigQuery.
-    gcp_project_id: str
-    bq_dataset: str
-
     aws_region: str
     s3_bucket_name: str
+
+    redshift_workgroup_name: str
+    redshift_database_name: str
+    # Analogous to the old BigQuery dataset -- Redshift's schema, not a
+    # dedicated database, is the natural home for one application's tables.
+    redshift_schema: str
+    # Role Redshift assumes to read the S3 bucket during COPY -- must already
+    # be associated with the Redshift Serverless namespace.
+    redshift_s3_role_arn: str
 
 
 @lru_cache

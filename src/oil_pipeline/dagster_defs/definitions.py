@@ -22,7 +22,7 @@ from oil_pipeline.dagster_defs.view_assets import (
 # the spawned step subprocess. in_process_executor runs every step in a
 # single process instead, sidestepping it -- fine at this pipeline's scale.
 
-# view_assets.py's assets just (re-)define BigQuery views -- since a view is
+# view_assets.py's assets just (re-)define Redshift views -- since a view is
 # a saved query evaluated fresh at query time (not a materialized
 # snapshot), they only need to run again when their SQL changes, not on
 # every routine data refresh. Excluded from data_refresh_job; use
@@ -49,16 +49,9 @@ star_schema_asset_selection = AssetSelection.assets(
     fact_oil_production,
 )
 
-# bigquery_imports (the three *_bigquery loaders + district_lookup_table) is
-# excluded too: as of Phase 1, local -> S3 is the only working cloud path --
-# BigQuery load jobs can't read from the s3:// URIs those assets are now
-# (structurally, not functionally) wired to. Re-include this once Phase 2
-# replaces them with Redshift-from-S3 loaders.
-bigquery_asset_selection = AssetSelection.groups("bigquery_imports")
-
 data_refresh_job = define_asset_job(
     "data_refresh_job",
-    selection=AssetSelection.all() - view_asset_selection - star_schema_asset_selection - bigquery_asset_selection,
+    selection=AssetSelection.all() - view_asset_selection - star_schema_asset_selection,
     executor_def=in_process_executor,
 )
 

@@ -1,4 +1,4 @@
-"""Looker Studio-facing BigQuery view definitions.
+"""Looker Studio-facing Redshift view definitions.
 
 Each view selects from its own source table ({table} -- fact_oil_production
 or dim_well) joined to the star-schema dimensions (dim_lease, dim_district,
@@ -21,16 +21,16 @@ OIL_PRODUCTION_VIOLATIONS_VIEW_QUERY = """SELECT
   dl.operator_number,
   op.organization_name,
   dl.county_code,
-  CONCAT('48', dl.county_code) AS county_fips,
+  '48' || dl.county_code AS county_fips,
   f.report_month,
   f.oil_production_bbl,
   f.oil_allowable_cycle_bbls,
   f.cumulative_overproduction_bbl,
-  SAFE_DIVIDE(f.oil_production_bbl, NULLIF(f.oil_allowable_cycle_bbls, 0)) AS allowable_utilization_ratio
-FROM `{table}` f
-LEFT JOIN `{dim_lease_table}` dl ON f.lease_id = dl.lease_id
-LEFT JOIN `{dim_district_table}` dd ON dl.district_code = dd.district_code
-LEFT JOIN `{dim_operator_table}` op ON dl.operator_number = op.operator_number
+  f.oil_production_bbl::FLOAT / NULLIF(f.oil_allowable_cycle_bbls, 0) AS allowable_utilization_ratio
+FROM {table} f
+LEFT JOIN {dim_lease_table} dl ON f.lease_id = dl.lease_id
+LEFT JOIN {dim_district_table} dd ON dl.district_code = dd.district_code
+LEFT JOIN {dim_operator_table} op ON dl.operator_number = op.operator_number
 WHERE f.cumulative_overproduction_bbl > 0
 ORDER BY f.cumulative_overproduction_bbl DESC"""
 
@@ -41,12 +41,12 @@ TOTAL_OIL_PRODUCTION_BY_LEASE_ID_VIEW_QUERY = """SELECT
   dl.operator_number,
   op.organization_name,
   dl.county_code,
-  CONCAT('48', dl.county_code) AS county_fips,
+  '48' || dl.county_code AS county_fips,
   SUM(f.oil_production_bbl) AS total_oil_production_bbl
-FROM `{table}` f
-LEFT JOIN `{dim_lease_table}` dl ON f.lease_id = dl.lease_id
-LEFT JOIN `{dim_district_table}` dd ON dl.district_code = dd.district_code
-LEFT JOIN `{dim_operator_table}` op ON dl.operator_number = op.operator_number
+FROM {table} f
+LEFT JOIN {dim_lease_table} dl ON f.lease_id = dl.lease_id
+LEFT JOIN {dim_district_table} dd ON dl.district_code = dd.district_code
+LEFT JOIN {dim_operator_table} op ON dl.operator_number = op.operator_number
 GROUP BY f.lease_id, dl.district_code, dd.district_name, dl.operator_number, op.organization_name, dl.county_code
 ORDER BY f.lease_id, dl.district_code ASC"""
 
@@ -55,9 +55,9 @@ TOTAL_OIL_PRODUCTION_BY_MONTH_AND_DISTRICT_CODE_VIEW_QUERY = """SELECT
   dl.district_code,
   dd.district_name,
   SUM(f.oil_production_bbl) AS total_oil_production_bbl
-FROM `{table}` f
-LEFT JOIN `{dim_lease_table}` dl ON f.lease_id = dl.lease_id
-LEFT JOIN `{dim_district_table}` dd ON dl.district_code = dd.district_code
+FROM {table} f
+LEFT JOIN {dim_lease_table} dl ON f.lease_id = dl.lease_id
+LEFT JOIN {dim_district_table} dd ON dl.district_code = dd.district_code
 GROUP BY f.report_month, dl.district_code, dd.district_name
 ORDER BY f.report_month, dl.district_code ASC"""
 
@@ -70,13 +70,13 @@ ORDER BY f.report_month, dl.district_code ASC"""
 TOTAL_OIL_PRODUCTION_BY_MONTH_AND_COUNTY_VIEW_QUERY = """SELECT
   f.report_month,
   dl.county_code,
-  CONCAT('48', dl.county_code) AS county_fips,
+  '48' || dl.county_code AS county_fips,
   dl.district_code,
   dd.district_name,
   SUM(f.oil_production_bbl) AS total_oil_production_bbl
-FROM `{table}` f
-LEFT JOIN `{dim_lease_table}` dl ON f.lease_id = dl.lease_id
-LEFT JOIN `{dim_district_table}` dd ON dl.district_code = dd.district_code
+FROM {table} f
+LEFT JOIN {dim_lease_table} dl ON f.lease_id = dl.lease_id
+LEFT JOIN {dim_district_table} dd ON dl.district_code = dd.district_code
 GROUP BY f.report_month, dl.county_code, dl.district_code, dd.district_name
 ORDER BY f.report_month, dl.county_code ASC"""
 
@@ -106,21 +106,21 @@ WELLS_VIEW_QUERY = """SELECT
   op.organization_name,
   dw.well_nbr,
   dw.county_code,
-  CONCAT('48', dw.county_code) AS county_fips,
+  '48' || dw.county_code AS county_fips,
   dw.latitude,
   dw.longitude,
   CASE WHEN dw.latitude IS NOT NULL AND dw.longitude IS NOT NULL
-       THEN CONCAT(CAST(dw.latitude AS STRING), ',', CAST(dw.longitude AS STRING))
+       THEN CAST(dw.latitude AS VARCHAR) || ',' || CAST(dw.longitude AS VARCHAR)
   END AS lat_long,
   dw.orig_compl_year,
   dw.total_depth_ft,
   dw.is_active,
   dw.is_plugged,
   dw.water_land_code
-FROM `{table}` dw
-LEFT JOIN `{dim_district_table}` dd ON dw.district_code = dd.district_code
-LEFT JOIN `{dim_lease_table}` dl ON dw.lease_id = dl.lease_id
-LEFT JOIN `{dim_operator_table}` op ON dl.operator_number = op.operator_number"""
+FROM {table} dw
+LEFT JOIN {dim_district_table} dd ON dw.district_code = dd.district_code
+LEFT JOIN {dim_lease_table} dl ON dw.lease_id = dl.lease_id
+LEFT JOIN {dim_operator_table} op ON dl.operator_number = op.operator_number"""
 
 # Maps each view name to its query template + the source table it reads
 # from -- the single place that wires a view name to its definition.
@@ -149,8 +149,7 @@ VIEW_DEFINITIONS = {
 
 
 def build_view_sql(
-    project: str,
-    dataset: str,
+    schema: str,
     view_name: str,
     source_table: str | None = None,
     dim_lease_table: str = "dim_lease",
@@ -159,6 +158,9 @@ def build_view_sql(
 ) -> str:
     """Build a CREATE OR REPLACE VIEW statement for one of the VIEW_DEFINITIONS.
 
+    Redshift supports CREATE OR REPLACE VIEW directly (unlike tables), so
+    this stays one statement.
+
     source_table defaults to the view's own definition (VIEW_DEFINITIONS[view_name]["source_table"])
     but can be overridden if ever needed (e.g. pointing at a differently-named table).
     """
@@ -166,9 +168,9 @@ def build_view_sql(
     if source_table is None:
         source_table = definition["source_table"]
     query = definition["query"].format(
-        table=f"{project}.{dataset}.{source_table}",
-        dim_lease_table=f"{project}.{dataset}.{dim_lease_table}",
-        dim_district_table=f"{project}.{dataset}.{dim_district_table}",
-        dim_operator_table=f"{project}.{dataset}.{dim_operator_table}",
+        table=f"{schema}.{source_table}",
+        dim_lease_table=f"{schema}.{dim_lease_table}",
+        dim_district_table=f"{schema}.{dim_district_table}",
+        dim_operator_table=f"{schema}.{dim_operator_table}",
     )
-    return f"CREATE OR REPLACE VIEW `{project}.{dataset}.{view_name}` AS\n{query}"
+    return f"CREATE OR REPLACE VIEW {schema}.{view_name} AS\n{query}"

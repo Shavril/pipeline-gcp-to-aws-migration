@@ -2,7 +2,7 @@
 
 Every transform here is a pure function of its input (no current-time,
 random, or external state), and every write in load/ is a full replace --
-CREATE OR REPLACE (DuckDB, BigQuery), WRITE_TRUNCATE (BigQuery load jobs), or
+CREATE OR REPLACE (DuckDB), DROP + CREATE / TRUNCATE + COPY (Redshift), or
 overwrite-by-fixed-name (Parquet, S3) -- never an append. So running any
 stage twice on the same input must produce exactly the same output, not
 duplicates. These tests assert that directly rather than leaving it implicit
@@ -146,14 +146,14 @@ def test_build_lease_operators_is_deterministic(tmp_path: Path):
 
 
 def test_build_view_sql_is_deterministic():
-    first = build_view_sql(project="proj", dataset="ds", view_name="wells_view")
-    second = build_view_sql(project="proj", dataset="ds", view_name="wells_view")
+    first = build_view_sql(schema="ds", view_name="wells_view")
+    second = build_view_sql(schema="ds", view_name="wells_view")
 
     assert first == second
 
 
 def test_build_star_schema_table_sql_is_deterministic():
-    first = build_star_schema_table_sql(project="proj", dataset="ds", table_name="dim_lease")
-    second = build_star_schema_table_sql(project="proj", dataset="ds", table_name="dim_lease")
+    first = build_star_schema_table_sql(schema="ds", table_name="dim_lease")
+    second = build_star_schema_table_sql(schema="ds", table_name="dim_lease")
 
     assert first == second

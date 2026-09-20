@@ -11,15 +11,15 @@ def test_every_district_code_maps_to_a_named_district():
 
 
 def test_build_district_lookup_sql_includes_every_district():
-    sql = build_district_lookup_sql(project="proj", dataset="ds")
+    sql = build_district_lookup_sql(schema="ds")
 
-    assert "CREATE OR REPLACE TABLE `proj.ds.rrc_districts`" in sql
+    assert "DROP TABLE IF EXISTS ds.rrc_districts" in sql
+    assert "CREATE TABLE ds.rrc_districts AS" in sql
     for code, district_id in DISTRICT_ID_BY_CODE.items():
-        assert f"'{code}' AS district_code" in sql
-        assert f"'{district_id}' AS rrc_district_id" in sql
+        assert f"SELECT '{code}' AS district_code, '{district_id}' AS rrc_district_id" in sql
 
 
 def test_build_district_lookup_sql_custom_table_name():
-    sql = build_district_lookup_sql(project="proj", dataset="ds", table="custom_districts")
+    sql = build_district_lookup_sql(schema="ds", table="custom_districts")
 
-    assert "`proj.ds.custom_districts`" in sql
+    assert "ds.custom_districts" in sql

@@ -14,10 +14,12 @@ REQUIRED_ENV = {
     "OIL_PIPELINE_LEASE_OPERATORS_DB_PATH": "data/database/lease_operators.duckdb",
     "OIL_PIPELINE_WELLS_DB_PATH": "data/database/wells.duckdb",
     "OIL_PIPELINE_PROCESSED_DATA_PATH": "data/processed",
-    "OIL_PIPELINE_GCP_PROJECT_ID": "texas-oil-data-platform",
-    "OIL_PIPELINE_BQ_DATASET": "analytics",
     "OIL_PIPELINE_AWS_REGION": "us-east-1",
     "OIL_PIPELINE_S3_BUCKET_NAME": "pipeline-gcp-to-aws-migration",
+    "OIL_PIPELINE_REDSHIFT_WORKGROUP_NAME": "pipeline-gcp-to-aws-migration",
+    "OIL_PIPELINE_REDSHIFT_DATABASE_NAME": "dev",
+    "OIL_PIPELINE_REDSHIFT_SCHEMA": "analytics",
+    "OIL_PIPELINE_REDSHIFT_S3_ROLE_ARN": "arn:aws:iam::740948698458:role/redshift-s3-read",
 }
 
 
@@ -31,17 +33,17 @@ def test_settings_load_from_env_vars(all_required_env):
     settings = Settings(_env_file=None)
 
     assert settings.raw_production_path == Path("data/raw/production/PDF100.ebc")
-    assert settings.gcp_project_id == "texas-oil-data-platform"
-    assert settings.bq_dataset == "analytics"
+    assert settings.s3_bucket_name == "pipeline-gcp-to-aws-migration"
+    assert settings.redshift_schema == "analytics"
 
 
 def test_settings_override(all_required_env, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("OIL_PIPELINE_GCP_PROJECT_ID", "some-other-project")
+    monkeypatch.setenv("OIL_PIPELINE_REDSHIFT_SCHEMA", "some_other_schema")
     monkeypatch.setenv("OIL_PIPELINE_WELLS_DB_PATH", "/tmp/custom_wells.duckdb")
 
     settings = Settings(_env_file=None)
 
-    assert settings.gcp_project_id == "some-other-project"
+    assert settings.redshift_schema == "some_other_schema"
     assert settings.wells_db_path == Path("/tmp/custom_wells.duckdb")
 
 

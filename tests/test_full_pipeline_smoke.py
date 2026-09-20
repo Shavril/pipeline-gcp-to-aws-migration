@@ -1,5 +1,5 @@
 """Opt-in end-to-end smoke test: runs the real pipeline against the real raw
-tapes and real AWS infrastructure, through the local -> S3 boundary.
+tapes and real AWS infrastructure, local -> S3 -> Redshift Serverless.
 
 This replaces what used to be main.py's plain-script entry point. That script
 demonstrated the same thing every asset-decorated function in assets.py
@@ -7,12 +7,6 @@ already claims -- that they're plain, directly-callable Python, not tied to
 Dagster's execution engine -- but as a hand-run script, nothing ever
 verified that claim automatically. Making it a real (if expensive, opt-in)
 test does.
-
-Stops after the S3 upload: the BigQuery-loading assets are not functional
-as of Phase 1 (BigQuery load jobs can't read s3:// URIs -- see the comment
-above oil_production_bigquery in assets.py) and will be replaced by
-Redshift-from-S3 loaders in Phase 2. This test will grow
-back to a full district-lookup/star-schema/views run once that lands.
 
 Skipped unless the real raw files exist and every setting loads (both
 checked at collection time, not import time, so this file never breaks
@@ -65,11 +59,14 @@ def _unwrap(result):
 
 def test_full_pipeline_runs_end_to_end_against_real_infrastructure():
     from oil_pipeline.dagster_defs.assets import (
+        district_lookup_table,
         lease_operators,
         lease_operators_parquet,
+        lease_operators_redshift,
         lease_operators_s3,
         oil_production,
         oil_production_parquet,
+        oil_production_redshift,
         oil_production_s3,
         p4_raw,
         p5_raw,
@@ -77,7 +74,23 @@ def test_full_pipeline_runs_end_to_end_against_real_infrastructure():
         wells,
         wells_parquet,
         wells_raw,
+        wells_redshift,
         wells_s3,
+    )
+    from oil_pipeline.dagster_defs.star_schema_assets import (
+        dim_date,
+        dim_district,
+        dim_lease,
+        dim_operator,
+        dim_well,
+        fact_oil_production,
+    )
+    from oil_pipeline.dagster_defs.view_assets import (
+        oil_production_violations_view,
+        total_oil_production_by_lease_id_view,
+        total_oil_production_by_month_and_county_view,
+        total_oil_production_by_month_and_district_code_view,
+        wells_view,
     )
 
     # Load the four raw tapes into DuckDB
@@ -106,5 +119,22 @@ def test_full_pipeline_runs_end_to_end_against_real_infrastructure():
     assert lease_operators_s3_uri.startswith("s3://")
     assert wells_s3_uri.startswith("s3://")
 
-    # Phase 2 picks up here: load from S3 into Redshift,
-    # then district lookup, star schema, and Looker Studio views.
+    # Load from S3 into Redshift
+    oil_production_redshift(oil_production_s3_uri)
+    lease_operators_redshift(lease_operators_s3_uri)
+    wells_redshift(wells_s3_uri)
+
+    # District lookup, star schema, and Looker Studio views -- the views
+    # read the star schema, not the raw analytics tables, so it has to run first
+    district_lookup_table()
+    dim_date()
+    dim_district()
+    dim_operator()
+    dim_lease()
+    dim_well()
+    fact_oil_production()
+    oil_production_violations_view()
+    total_oil_production_by_lease_id_view()
+    total_oil_production_by_month_and_district_code_view()
+    total_oil_production_by_month_and_county_view()
+    wells_view()

@@ -40,18 +40,24 @@ DISTRICT_NAME_BY_ID = {
 }
 
 
-def build_district_lookup_sql(project: str, dataset: str, table: str = "rrc_districts") -> str:
-    """Build a CREATE OR REPLACE TABLE statement for the district code/name lookup.
+def build_district_lookup_sql(schema: str, table: str = "rrc_districts") -> str:
+    """Build DROP + CREATE TABLE AS SELECT statements for the district code/name lookup.
 
     Small and static enough to inline as literal rows rather than staging
-    through Parquet/GCS like the other analytics tables.
+    through Parquet/S3 like the other analytics tables. Redshift has no
+    CREATE OR REPLACE TABLE, so this is DROP IF EXISTS + CREATE AS SELECT
+    rather than one statement.
+
+    Uses UNION ALL of single-row SELECTs, not a `VALUES (...), (...)` table
+    constructor -- the ltter fails with a syntax error at the second row (Redshift's
+    parser only accepts one row there, unlike Postgres/BigQuery).
     """
-    rows = ",\n".join(
-        f"    STRUCT('{code}' AS district_code, '{district_id}' AS rrc_district_id, "
-        f"'{DISTRICT_NAME_BY_ID[district_id]}' AS district_name)"
+    rows = "\nUNION ALL\n".join(
+        f"SELECT '{code}' AS district_code, '{district_id}' AS rrc_district_id, "
+        f"'{DISTRICT_NAME_BY_ID[district_id]}' AS district_name"
         for code, district_id in sorted(DISTRICT_ID_BY_CODE.items())
     )
-    return f"""CREATE OR REPLACE TABLE `{project}.{dataset}.{table}` AS
-SELECT * FROM UNNEST([
-{rows}
-])"""
+    qualified_table = f"{schema}.{table}"
+    return f"""DROP TABLE IF EXISTS {qualified_table};
+CREATE TABLE {qualified_table} AS
+{rows}"""
