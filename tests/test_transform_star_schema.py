@@ -7,8 +7,8 @@ from oil_pipeline.transform.star_schema import STAR_SCHEMA_DEFINITIONS, build_st
 def test_build_star_schema_table_sql_leaves_no_unfilled_placeholders(table_name):
     sql = build_star_schema_table_sql(schema="ds", table_name=table_name)
 
-    assert f"DROP TABLE IF EXISTS ds.{table_name}" in sql
-    assert f"CREATE TABLE ds.{table_name} AS" in sql
+    assert f"TRUNCATE TABLE ds.{table_name}" in sql
+    assert f"INSERT INTO ds.{table_name}" in sql
     assert "{" not in sql and "}" not in sql
 
 

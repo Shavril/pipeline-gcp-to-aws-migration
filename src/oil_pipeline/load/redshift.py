@@ -113,6 +113,82 @@ def ensure_raw_tables(workgroup: str, database: str, schema: str) -> None:
         run_redshift_sql(ddl.format(schema=schema), workgroup, database)
 
 
+# Explicit DDL for the same reason as _RAW_TABLE_DDL above: transform/star_schema.py's
+# build_star_schema_table_sql does TRUNCATE + INSERT, not DROP + CREATE (Redshift refuses
+# to drop a table that a view depends on, and transform/views.py's views depend on these),
+# so the tables need to already exist with a matching column list.
+_STAR_SCHEMA_DDL = {
+    "dim_date": """
+        CREATE TABLE IF NOT EXISTS {schema}.dim_date (
+            report_month DATE,
+            year INTEGER,
+            quarter INTEGER,
+            month INTEGER,
+            month_name VARCHAR(16)
+        )
+    """,
+    "dim_district": """
+        CREATE TABLE IF NOT EXISTS {schema}.dim_district (
+            district_code VARCHAR(8),
+            rrc_district_id VARCHAR(8),
+            district_name VARCHAR(64)
+        )
+    """,
+    "dim_operator": """
+        CREATE TABLE IF NOT EXISTS {schema}.dim_operator (
+            operator_number VARCHAR(16),
+            organization_name VARCHAR(256),
+            p5_status VARCHAR(16)
+        )
+    """,
+    "dim_lease": """
+        CREATE TABLE IF NOT EXISTS {schema}.dim_lease (
+            lease_id VARCHAR(32),
+            district_code VARCHAR(8),
+            lease_nbr VARCHAR(16),
+            operator_number VARCHAR(16),
+            county_code VARCHAR(8)
+        )
+    """,
+    "dim_well": """
+        CREATE TABLE IF NOT EXISTS {schema}.dim_well (
+            api_number VARCHAR(32),
+            lease_id VARCHAR(32),
+            district_code VARCHAR(8),
+            well_nbr VARCHAR(16),
+            is_active BOOLEAN,
+            county_code VARCHAR(8),
+            latitude DOUBLE PRECISION,
+            longitude DOUBLE PRECISION,
+            orig_compl_year INTEGER,
+            total_depth_ft INTEGER,
+            is_plugged BOOLEAN,
+            water_land_code VARCHAR(8)
+        )
+    """,
+    "fact_oil_production": """
+        CREATE TABLE IF NOT EXISTS {schema}.fact_oil_production (
+            lease_id VARCHAR(32),
+            report_month DATE,
+            oil_production_bbl BIGINT,
+            casinghead_gas_mcf BIGINT,
+            casinghead_gas_lift_mcf BIGINT,
+            oil_allowable_cycle_bbls BIGINT,
+            cumulative_overproduction_bbl BIGINT,
+            is_corrected_report BOOLEAN,
+            is_filed_by_edi BOOLEAN
+        )
+    """,
+}
+
+
+def ensure_star_schema_tables(workgroup: str, database: str, schema: str) -> None:
+    """Create the star-schema fact/dimension tables if they don't already exist."""
+    ensure_schema(workgroup, database, schema)
+    for ddl in _STAR_SCHEMA_DDL.values():
+        run_redshift_sql(ddl.format(schema=schema), workgroup, database)
+
+
 def load_parquet_to_redshift(
     s3_uri: str, workgroup: str, database: str, schema: str, table: str, iam_role_arn: str
 ) -> int:

@@ -1,15 +1,14 @@
 """Redshift star-schema (fact/dimension) table definitions for the analytics warehouse.
 
-Built the same way transform/views.py builds a view -- DROP + CREATE TABLE
-AS SELECT statements over the already-Redshift-resident analytics tables
-(oil_production, wells, lease_operators, rrc_districts) -- but materialized
-into a proper fact/dimension shape instead of an ad-hoc join-at-query-time.
-transform/views.py's Looker-Studio-facing views read these tables rather
-than the raw analytics tables directly (verified byte-for-byte identical
-output against the pre-rewrite views before that changeover shipped) --
-this is the one place those joins/approximations are computed. Nothing
-upstream of the warehouse (extract/transform/DuckDB/Parquet/S3) needed to
-change to support any of it.
+TRUNCATE + INSERT INTO ... SELECT over the already-Redshift-resident
+analytics tables (oil_production, wells, lease_operators, rrc_districts) --
+materialized into a proper fact/dimension shape instead of an ad-hoc
+join-at-query-time. transform/views.py's Looker-Studio-facing views read
+these tables rather than the raw analytics tables directly (verified
+byte-for-byte identical output against the pre-rewrite views before that
+changeover shipped) -- this is the one place those joins/approximations are
+computed. Nothing upstream of the warehouse (extract/transform/DuckDB/
+Parquet/S3) needed to change to support any of it.
 
 Model:
     fact_oil_production -- one row per lease per reporting month (same grain
@@ -45,9 +44,9 @@ monthly fact rows.
 
 DIM_DATE_QUERY = """SELECT DISTINCT
   report_month,
-  EXTRACT(YEAR FROM report_month) AS year,
-  EXTRACT(QUARTER FROM report_month) AS quarter,
-  EXTRACT(MONTH FROM report_month) AS month,
+  CAST(EXTRACT(YEAR FROM report_month) AS INTEGER) AS year,
+  CAST(EXTRACT(QUARTER FROM report_month) AS INTEGER) AS quarter,
+  CAST(EXTRACT(MONTH FROM report_month) AS INTEGER) AS month,
   TRIM(TO_CHAR(report_month, 'Month')) AS month_name
 FROM {oil_production_table}"""
 
@@ -127,10 +126,16 @@ def build_star_schema_table_sql(
     lease_operators_table: str = "lease_operators",
     districts_table: str = "rrc_districts",
 ) -> str:
-    """Build DROP + CREATE TABLE AS SELECT statements for one of STAR_SCHEMA_DEFINITIONS.
+    """Build TRUNCATE + INSERT INTO ... SELECT statements for one of STAR_SCHEMA_DEFINITIONS.
 
-    Redshift has no CREATE OR REPLACE TABLE, so this is DROP IF EXISTS +
-    CREATE AS SELECT rather than one statement.
+    Not DROP + CREATE: transform/views.py's Looker Studio-facing views are
+    built on top of these tables, and Redshift refuses to DROP a table that
+    a view depends on ("cannot drop table ... because other objects depend
+    on it"). TRUNCATE + INSERT preserves the table's identity, so
+    dependent views keep working across every refresh. The table must
+    already exist with a matching column list -- see load/redshift.py's
+    ensure_star_schema_tables, called by every asset in star_schema_assets.py
+    before this SQL runs.
     """
     query = STAR_SCHEMA_DEFINITIONS[table_name].format(
         oil_production_table=f"{schema}.{oil_production_table}",
@@ -139,4 +144,4 @@ def build_star_schema_table_sql(
         districts_table=f"{schema}.{districts_table}",
     )
     qualified_table = f"{schema}.{table_name}"
-    return f"DROP TABLE IF EXISTS {qualified_table};\nCREATE TABLE {qualified_table} AS\n{query}"
+    return f"TRUNCATE TABLE {qualified_table};\nINSERT INTO {qualified_table}\n{query}"

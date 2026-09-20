@@ -29,7 +29,7 @@ from oil_pipeline.dagster_defs.assets import (
     oil_production_redshift,
     wells_redshift,
 )
-from oil_pipeline.load.redshift import run_redshift_sql
+from oil_pipeline.load.redshift import ensure_star_schema_tables, run_redshift_sql
 from oil_pipeline.transform.star_schema import build_star_schema_table_sql
 
 settings = get_settings()
@@ -47,10 +47,13 @@ def dim_date() -> MaterializeResult:
     """Distinct report months from oil_production, with year/quarter/month attributes."""
     start = time.perf_counter()
     table_name = "dim_date"
+    ensure_star_schema_tables(
+        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+    )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()
-    print(f"Created {REDSHIFT_SCHEMA}.{table_name}")
+    print(f"Refreshed {REDSHIFT_SCHEMA}.{table_name}")
     return MaterializeResult(metadata={"duration_seconds": round(time.perf_counter() - start, 2)})
 
 
@@ -62,10 +65,13 @@ def dim_district() -> MaterializeResult:
     """District code/id/name reference, mirrored from rrc_districts for star-schema naming."""
     start = time.perf_counter()
     table_name = "dim_district"
+    ensure_star_schema_tables(
+        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+    )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()
-    print(f"Created {REDSHIFT_SCHEMA}.{table_name}")
+    print(f"Refreshed {REDSHIFT_SCHEMA}.{table_name}")
     return MaterializeResult(metadata={"duration_seconds": round(time.perf_counter() - start, 2)})
 
 
@@ -77,10 +83,13 @@ def dim_operator() -> MaterializeResult:
     """One row per operator_number, deduped from lease_operators."""
     start = time.perf_counter()
     table_name = "dim_operator"
+    ensure_star_schema_tables(
+        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+    )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()
-    print(f"Created {REDSHIFT_SCHEMA}.{table_name}")
+    print(f"Refreshed {REDSHIFT_SCHEMA}.{table_name}")
     return MaterializeResult(metadata={"duration_seconds": round(time.perf_counter() - start, 2)})
 
 
@@ -92,10 +101,13 @@ def dim_lease() -> MaterializeResult:
     """One row per oil lease -- district, operator, and a lease-level county approximation."""
     start = time.perf_counter()
     table_name = "dim_lease"
+    ensure_star_schema_tables(
+        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+    )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()
-    print(f"Created {REDSHIFT_SCHEMA}.{table_name}")
+    print(f"Refreshed {REDSHIFT_SCHEMA}.{table_name}")
     return MaterializeResult(metadata={"duration_seconds": round(time.perf_counter() - start, 2)})
 
 
@@ -107,10 +119,13 @@ def dim_well() -> MaterializeResult:
     """One row per oil well."""
     start = time.perf_counter()
     table_name = "dim_well"
+    ensure_star_schema_tables(
+        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+    )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()
-    print(f"Created {REDSHIFT_SCHEMA}.{table_name}")
+    print(f"Refreshed {REDSHIFT_SCHEMA}.{table_name}")
     return MaterializeResult(metadata={"duration_seconds": round(time.perf_counter() - start, 2)})
 
 
@@ -122,8 +137,11 @@ def fact_oil_production() -> MaterializeResult:
     """One row per lease per reporting month -- the production fact table."""
     start = time.perf_counter()
     table_name = "fact_oil_production"
+    ensure_star_schema_tables(
+        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+    )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()
-    print(f"Created {REDSHIFT_SCHEMA}.{table_name}")
+    print(f"Refreshed {REDSHIFT_SCHEMA}.{table_name}")
     return MaterializeResult(metadata={"duration_seconds": round(time.perf_counter() - start, 2)})
