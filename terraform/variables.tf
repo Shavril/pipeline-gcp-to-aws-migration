@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "project_name" {
-  description = "Short name used as a prefix for AWS resource names."
+  description = "Portfolio project showing migration of a pipeline from GCP to AWS."
   type        = string
   default     = "pipeline-gcp-to-aws"
 }

@@ -88,6 +88,7 @@ REDSHIFT_WORKGROUP_NAME = settings.redshift_workgroup_name
 REDSHIFT_DATABASE_NAME = settings.redshift_database_name
 REDSHIFT_SCHEMA = settings.redshift_schema
 REDSHIFT_S3_ROLE_ARN = settings.redshift_s3_role_arn
+REDSHIFT_LOOKER_READER_PASSWORD = settings.redshift_looker_reader_password
 
 
 def _scalar_count(con: duckdb.DuckDBPyConnection, sql: str) -> int:
@@ -472,6 +473,7 @@ def oil_production_redshift(oil_production_s3: str) -> MaterializeResult:
         schema=REDSHIFT_SCHEMA,
         table="oil_production",
         iam_role_arn=REDSHIFT_S3_ROLE_ARN,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     print()
     print(f"Loaded {oil_production_s3} -> {REDSHIFT_SCHEMA}.oil_production")
@@ -496,6 +498,7 @@ def lease_operators_redshift(lease_operators_s3: str) -> MaterializeResult:
         schema=REDSHIFT_SCHEMA,
         table="lease_operators",
         iam_role_arn=REDSHIFT_S3_ROLE_ARN,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     print()
     print(f"Loaded {lease_operators_s3} -> {REDSHIFT_SCHEMA}.lease_operators")
@@ -520,6 +523,7 @@ def wells_redshift(wells_s3: str) -> MaterializeResult:
         schema=REDSHIFT_SCHEMA,
         table="wells",
         iam_role_arn=REDSHIFT_S3_ROLE_ARN,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     print()
     print(f"Loaded {wells_s3} -> {REDSHIFT_SCHEMA}.wells")
@@ -537,7 +541,12 @@ def wells_redshift(wells_s3: str) -> MaterializeResult:
 def district_lookup_table() -> MaterializeResult:
     """Create/refresh the small static district code/id/name lookup table rrc_districts"""
     start = time.perf_counter()
-    ensure_schema(workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA)
+    ensure_schema(
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
+    )
     sql = build_district_lookup_sql(REDSHIFT_SCHEMA)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
     print()

@@ -20,6 +20,7 @@ REQUIRED_ENV = {
     "OIL_PIPELINE_REDSHIFT_DATABASE_NAME": "dev",
     "OIL_PIPELINE_REDSHIFT_SCHEMA": "analytics",
     "OIL_PIPELINE_REDSHIFT_S3_ROLE_ARN": "arn:aws:iam::740948698458:role/redshift-s3-read",
+    "OIL_PIPELINE_REDSHIFT_LOOKER_READER_PASSWORD": "test-password",
 }
 
 

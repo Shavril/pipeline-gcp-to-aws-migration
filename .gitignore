@@ -163,6 +163,8 @@ terraform/*.tfstate
 terraform/*.tfstate.*
 terraform/*.tfvars
 terraform/crash.log
+terraform/*.tfplan
+terraform/*-plan.txt
 
 # Project raw data (Pipeline GCP -> AWS Migration)
 #   Never commit raw RRC extracts (large), but keep the

@@ -84,7 +84,39 @@ def run_redshift_sql(sql: str, workgroup: str, database: str) -> None:
     logger.info("Executed Redshift SQL (statement %s)", response["Id"])
 
 
-def ensure_schema(workgroup: str, database: str, schema: str) -> None:
+def _looker_reader_exists(workgroup: str, database: str) -> bool:
+    client = boto3.client("redshift-data")
+    response = client.execute_statement(
+        WorkgroupName=workgroup, Database=database, Sql="SELECT 1 FROM pg_user WHERE usename = 'looker_reader'"
+    )
+    _wait_for_statement(client, response["Id"])
+    result = client.get_statement_result(Id=response["Id"])
+    return len(result["Records"]) > 0
+
+
+def _ensure_looker_reader(workgroup: str, database: str, schema: str, password: str) -> None:
+    """Create the looker_reader database user if it doesn't exist, and (re-)grant it access.
+
+    looker_reader is a plain database user/password, not an IAM identity --
+    Looker Studio's connector needs a real password, unlike everything else
+    in this project (see config.py's redshift_looker_reader_password).
+    CREATE USER only ever runs once: the password is never rotated here, so
+    Looker Studio's saved connection keeps working across every pipeline
+    run, and survives a full namespace rebuild (e.g. terraform destroy +
+    apply) as long as the configured password doesn't change.
+    """
+    if not _looker_reader_exists(workgroup, database):
+        run_redshift_sql(f"CREATE USER looker_reader PASSWORD '{password}'", workgroup, database)
+
+    run_redshift_sql(
+        f"""GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO looker_reader;
+ALTER USER looker_reader SET search_path TO {schema}, public""",
+        workgroup,
+        database,
+    )
+
+
+def ensure_schema(workgroup: str, database: str, schema: str, looker_reader_password: str) -> None:
     """Create the schema if it doesn't already exist, and make it readable.
 
     Called from every entry point that creates a table/view in it.
@@ -104,11 +136,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA {schema} GRANT SELECT ON TABLES TO PUBLIC""",
         workgroup,
         database,
     )
+    _ensure_looker_reader(workgroup, database, schema, looker_reader_password)
 
 
-def ensure_raw_tables(workgroup: str, database: str, schema: str) -> None:
+def ensure_raw_tables(workgroup: str, database: str, schema: str, looker_reader_password: str) -> None:
     """Create the schema and raw analytics tables if they don't already exist."""
-    ensure_schema(workgroup, database, schema)
+    ensure_schema(workgroup, database, schema, looker_reader_password)
     for ddl in _RAW_TABLE_DDL.values():
         run_redshift_sql(ddl.format(schema=schema), workgroup, database)
 
@@ -182,23 +215,30 @@ _STAR_SCHEMA_DDL = {
 }
 
 
-def ensure_star_schema_tables(workgroup: str, database: str, schema: str) -> None:
+def ensure_star_schema_tables(workgroup: str, database: str, schema: str, looker_reader_password: str) -> None:
     """Create the star-schema fact/dimension tables if they don't already exist."""
-    ensure_schema(workgroup, database, schema)
+    ensure_schema(workgroup, database, schema, looker_reader_password)
     for ddl in _STAR_SCHEMA_DDL.values():
         run_redshift_sql(ddl.format(schema=schema), workgroup, database)
 
 
 def load_parquet_to_redshift(
-    s3_uri: str, workgroup: str, database: str, schema: str, table: str, iam_role_arn: str
+    s3_uri: str,
+    workgroup: str,
+    database: str,
+    schema: str,
+    table: str,
+    iam_role_arn: str,
+    looker_reader_password: str,
 ) -> int:
     """Load a Parquet file from S3 into a Redshift table, replacing its contents wholesale.
 
     TRUNCATE + COPY, not an incremental upsert -- a full reload every run.
 
-    Returns the row count of the loaded table (a follow-up SELECT COUNT(*)www.
+    Returns the row count of the loaded table (a follow-up SELECT COUNT(*),
+    since COPY doesn't hand back a row count the way a BigQuery load job does).
     """
-    ensure_raw_tables(workgroup, database, schema)
+    ensure_raw_tables(workgroup, database, schema, looker_reader_password)
 
     client = boto3.client("redshift-data")
     qualified_table = f"{schema}.{table}"

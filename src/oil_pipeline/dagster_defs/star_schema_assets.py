@@ -37,6 +37,7 @@ settings = get_settings()
 REDSHIFT_WORKGROUP_NAME = settings.redshift_workgroup_name
 REDSHIFT_DATABASE_NAME = settings.redshift_database_name
 REDSHIFT_SCHEMA = settings.redshift_schema
+REDSHIFT_LOOKER_READER_PASSWORD = settings.redshift_looker_reader_password
 
 
 @asset(
@@ -48,7 +49,10 @@ def dim_date() -> MaterializeResult:
     start = time.perf_counter()
     table_name = "dim_date"
     ensure_star_schema_tables(
-        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
@@ -66,7 +70,10 @@ def dim_district() -> MaterializeResult:
     start = time.perf_counter()
     table_name = "dim_district"
     ensure_star_schema_tables(
-        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
@@ -84,7 +91,10 @@ def dim_operator() -> MaterializeResult:
     start = time.perf_counter()
     table_name = "dim_operator"
     ensure_star_schema_tables(
-        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
@@ -102,7 +112,10 @@ def dim_lease() -> MaterializeResult:
     start = time.perf_counter()
     table_name = "dim_lease"
     ensure_star_schema_tables(
-        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
@@ -120,7 +133,10 @@ def dim_well() -> MaterializeResult:
     start = time.perf_counter()
     table_name = "dim_well"
     ensure_star_schema_tables(
-        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
@@ -138,7 +154,10 @@ def fact_oil_production() -> MaterializeResult:
     start = time.perf_counter()
     table_name = "fact_oil_production"
     ensure_star_schema_tables(
-        workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME, schema=REDSHIFT_SCHEMA
+        workgroup=REDSHIFT_WORKGROUP_NAME,
+        database=REDSHIFT_DATABASE_NAME,
+        schema=REDSHIFT_SCHEMA,
+        looker_reader_password=REDSHIFT_LOOKER_READER_PASSWORD,
     )
     sql = build_star_schema_table_sql(REDSHIFT_SCHEMA, table_name)
     run_redshift_sql(sql, workgroup=REDSHIFT_WORKGROUP_NAME, database=REDSHIFT_DATABASE_NAME)
