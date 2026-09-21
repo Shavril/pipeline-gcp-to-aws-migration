@@ -41,33 +41,50 @@ jobs:
 
       # Redshift Serverless (no admin password set - see config.py) grants
       # superuser privileges to whichever IAM identity first provisions a
-      # fresh namespace. When this workflow just created one (as just
-      # happened once), that's this workflow's own role, not the local dev
-      # user that actually runs the pipeline - which then has no privilege
-      # to CREATE SCHEMA at all. This step is idempotent (safe to run every
-      # time) and expected to fail harmlessly when this workflow didn't
-      # just create the namespace (whichever identity did already has
-      # superuser rights instead, so nothing needs granting) - it reports
-      # that outcome without failing the workflow.
+      # fresh namespace. When this workflow just created one, that's this
+      # workflow's own role, not the local dev user that actually runs the
+      # pipeline - which then has no privilege to CREATE SCHEMA, and
+      # separately (a distinct system privilege, confirmed against AWS's
+      # own GRANT reference) no privilege to CREATE USER either. System
+      # privileges like CREATE USER can only be granted to a ROLE, not
+      # directly to a user or PUBLIC, hence the extra CREATE ROLE +
+      # GRANT ... TO ROLE + GRANT ROLE ... TO <user> sequence below.
+      #
+      # Every statement here is idempotent in effect and expected to fail
+      # harmlessly when this workflow didn't just create the namespace
+      # (whichever identity did already has superuser rights instead, so
+      # nothing needs granting, or the role/grant already exists from a
+      # previous run) - failures are reported, not swallowed silently, but
+      # never fail the workflow.
       - name: Ensure the database is usable by any identity
         continue-on-error: true
         run: |
-          STATEMENT_ID=$(aws redshift-data execute-statement \
-            --workgroup-name pipeline-gcp-to-aws \
-            --database dev \
-            --sql 'GRANT CREATE ON DATABASE dev TO PUBLIC' \
-            --query 'Id' --output text)
-          for i in $(seq 1 30); do
-            STATUS=$(aws redshift-data describe-statement --id "$STATEMENT_ID" --query 'Status' --output text)
-            if [ "$STATUS" = "FINISHED" ]; then
-              echo "Granted CREATE on database dev to PUBLIC."
-              exit 0
-            fi
-            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ABORTED" ]; then
-              echo "Grant not applied (this role likely wasn't the namespace's bootstrap identity this time, so it's not needed):"
-              aws redshift-data describe-statement --id "$STATEMENT_ID" --query 'Error' --output text
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Timed out waiting for the grant statement; continuing anyway."
+          run_sql() {
+            local sql="$1"
+            local id
+            id=$(aws redshift-data execute-statement \
+              --workgroup-name pipeline-gcp-to-aws \
+              --database dev \
+              --sql "$sql" \
+              --query 'Id' --output text)
+            for i in $(seq 1 30); do
+              local status
+              status=$(aws redshift-data describe-statement --id "$id" --query 'Status' --output text)
+              if [ "$status" = "FINISHED" ]; then
+                echo "OK: $sql"
+                return 0
+              fi
+              if [ "$status" = "FAILED" ] || [ "$status" = "ABORTED" ]; then
+                echo "Not applied (likely already in place, or this role isn't the bootstrap identity this time): $sql"
+                aws redshift-data describe-statement --id "$id" --query 'Error' --output text
+                return 0
+              fi
+              sleep 2
+            done
+            echo "Timed out: $sql"
+          }
+
+          run_sql "GRANT CREATE ON DATABASE dev TO PUBLIC"
+          run_sql "CREATE ROLE db_admin"
+          run_sql "GRANT CREATE USER TO ROLE db_admin"
+          run_sql 'GRANT ROLE db_admin TO "IAM:pipeline-gcp-to-aws-migration"'
