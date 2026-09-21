@@ -39,10 +39,22 @@ data "aws_iam_policy_document" "github_actions_trust" {
     # the workflow file), not branch restriction. Tighten to
     # repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main if only
     # main should ever be allowed to deploy.
+    #
+    # Two patterns, not one: GitHub rolled out "immutable subject claims"
+    # for repos created after 2026-07-15 (this one included) - the actual
+    # sub claim is now "repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:..." with
+    # numeric IDs appended after each name, not the classic
+    # "repo:OWNER/REPO:ref:..." every example online still shows. Verified
+    # directly against this repo's real token (decoded via a temporary
+    # workflow debug step) rather than assumed. Matching both formats here
+    # is future-proof against GitHub changing the default again.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:*"]
+      values = [
+        "repo:${var.github_org}/${var.github_repo}:*",
+        "repo:${var.github_org}@*/${var.github_repo}@*:*",
+      ]
     }
   }
 }
