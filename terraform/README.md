@@ -73,6 +73,27 @@ nothing is actually still attached by that point in the destroy sequence.
 - **The local dev IAM user** (`pipeline-gcp-to-aws-migration`) and its permissions -
   this is the bootstrap identity Terraform itself runs as, so it's a manual prerequisite instead 
   (see account setup notes elsewhere in the repo).
+- **The Terraform state bucket** (`pipeline-gcp-to-aws-migration-tfstate-<account id>`) -
+  see "Remote state" below for why this has to sit outside this config's own management.
+
+## Remote state
+
+State lives in S3 (`providers.tf`'s `backend "s3"` block), not the default local
+`terraform.tfstate` file, so the local dev machine and GitHub Actions both read/write the
+same state instead of each having their own disconnected view. Without this, a fresh
+`deploy-terraform` run (fresh checkout, no local state) would think nothing exists yet and
+try to recreate everything, colliding with what's actually already there - which is exactly
+what happened before this was set up.
+
+The state bucket is deliberately a separate, manually-created bucket (versioned +
+encrypted, created once via the AWS CLI, not via `terraform apply`) rather than reusing the
+application bucket in `s3.tf`. State must never live inside anything this same Terraform
+config could destroy - `destroy-costly-resources` specifically targets that application
+bucket, and if the state file lived there too, that workflow would corrupt Terraform's own
+record of everything else the moment it ran.
+
+Locking uses S3's own conditional writes (`use_lockfile = true`, Terraform 1.10+) - no
+DynamoDB table needed.
 
 ## Usage
 
