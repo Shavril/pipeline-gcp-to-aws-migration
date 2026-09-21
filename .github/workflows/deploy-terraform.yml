@@ -44,11 +44,12 @@ jobs:
       # fresh namespace. When this workflow just created one, that's this
       # workflow's own role, not the local dev user that actually runs the
       # pipeline - which then has no privilege to CREATE SCHEMA, and
-      # separately (a distinct system privilege, confirmed against AWS's
-      # own GRANT reference) no privilege to CREATE USER either. System
-      # privileges like CREATE USER can only be granted to a ROLE, not
-      # directly to a user or PUBLIC, hence the extra CREATE ROLE +
-      # GRANT ... TO ROLE + GRANT ROLE ... TO <user> sequence below.
+      # separately (each a distinct system privilege, confirmed against
+      # AWS's own GRANT reference) no privilege to CREATE USER or
+      # ALTER USER either. System privileges like these can only be
+      # granted to a ROLE, not directly to a user or PUBLIC, hence the
+      # extra CREATE ROLE + GRANT ... TO ROLE + GRANT ROLE ... TO <user>
+      # sequence below.
       #
       # Every statement here is idempotent in effect and expected to fail
       # harmlessly when this workflow didn't just create the namespace
@@ -87,4 +88,5 @@ jobs:
           run_sql "GRANT CREATE ON DATABASE dev TO PUBLIC"
           run_sql "CREATE ROLE db_admin"
           run_sql "GRANT CREATE USER TO ROLE db_admin"
+          run_sql "GRANT ALTER USER TO ROLE db_admin"
           run_sql 'GRANT ROLE db_admin TO "IAM:pipeline-gcp-to-aws-migration"'
