@@ -38,3 +38,36 @@ jobs:
 
       - name: Terraform apply
         run: terraform apply tfplan
+
+      # Redshift Serverless (no admin password set - see config.py) grants
+      # superuser privileges to whichever IAM identity first provisions a
+      # fresh namespace. When this workflow just created one (as just
+      # happened once), that's this workflow's own role, not the local dev
+      # user that actually runs the pipeline - which then has no privilege
+      # to CREATE SCHEMA at all. This step is idempotent (safe to run every
+      # time) and expected to fail harmlessly when this workflow didn't
+      # just create the namespace (whichever identity did already has
+      # superuser rights instead, so nothing needs granting) - it reports
+      # that outcome without failing the workflow.
+      - name: Ensure the database is usable by any identity
+        continue-on-error: true
+        run: |
+          STATEMENT_ID=$(aws redshift-data execute-statement \
+            --workgroup-name pipeline-gcp-to-aws \
+            --database dev \
+            --sql 'GRANT CREATE ON DATABASE dev TO PUBLIC' \
+            --query 'Id' --output text)
+          for i in $(seq 1 30); do
+            STATUS=$(aws redshift-data describe-statement --id "$STATEMENT_ID" --query 'Status' --output text)
+            if [ "$STATUS" = "FINISHED" ]; then
+              echo "Granted CREATE on database dev to PUBLIC."
+              exit 0
+            fi
+            if [ "$STATUS" = "FAILED" ] || [ "$STATUS" = "ABORTED" ]; then
+              echo "Grant not applied (this role likely wasn't the namespace's bootstrap identity this time, so it's not needed):"
+              aws redshift-data describe-statement --id "$STATEMENT_ID" --query 'Error' --output text
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timed out waiting for the grant statement; continuing anyway."
