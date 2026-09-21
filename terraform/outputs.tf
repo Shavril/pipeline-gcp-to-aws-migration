@@ -22,3 +22,8 @@ output "redshift_endpoint" {
   description = "Host:port for Looker Studio's Basic connection."
   value       = "${aws_redshiftserverless_workgroup.pipeline.endpoint[0].address}:${aws_redshiftserverless_workgroup.pipeline.endpoint[0].port}"
 }
+
+output "github_actions_role_arn" {
+  description = "Set as the AWS_DEPLOY_ROLE_ARN repository variable in GitHub (Settings > Secrets and variables > Actions > Variables)."
+  value       = aws_iam_role.github_actions_deploy.arn
+}

@@ -1,0 +1,40 @@
+name: deploy-terraform
+
+# Manual trigger only - this project has no server-side app to deploy (the
+# pipeline runs locally), so the only thing "deployed" to AWS is the
+# Terraform-managed infrastructure itself.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC -> AWS
+  contents: read
+
+jobs:
+  terraform-apply:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform plan
+        run: terraform plan -out tfplan
+
+      - name: Terraform apply
+        run: terraform apply tfplan

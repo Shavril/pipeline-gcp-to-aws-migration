@@ -1,0 +1,52 @@
+name: destroy-costly-resources
+
+# Tears down the resources that actually cost money: Redshift Serverless
+# (namespace + workgroup, the dominant cost - billed per-second while
+# active) and the S3 bucket (storage, a fraction of a cent per month at
+# this data volume, but not literally zero). IAM roles, the OIDC provider,
+# and the security group cost nothing to leave running, so they're
+# deliberately left alone here - that's what lets this same OIDC role
+# rebuild everything again later without a catch-22 (see
+# destroy-everything.yml for the one that removes that access too). The S3
+# bucket has force_destroy = true, so it deletes cleanly even with objects
+# in it, and gets recreated automatically on the next deploy-terraform run.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC -> AWS
+  contents: read
+
+jobs:
+  terraform-destroy-redshift:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Plan destroy (Redshift + S3)
+        run: |
+          terraform plan -destroy \
+            -target aws_redshiftserverless_workgroup.pipeline \
+            -target aws_redshiftserverless_namespace.pipeline \
+            -target aws_s3_bucket.pipeline \
+            -out tfplan
+
+      - name: Apply destroy
+        run: terraform apply tfplan

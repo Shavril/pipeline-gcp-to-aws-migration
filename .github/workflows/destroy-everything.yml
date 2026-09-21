@@ -1,0 +1,66 @@
+name: destroy-everything
+
+# Tears down every AWS resource this project's Terraform manages, including
+# the OIDC provider and the deploy role this very workflow authenticates
+# with. That's a real, known limitation, not an oversight: once this runs,
+# GitHub Actions has no way back into the AWS account - rebuilding requires
+# a human running `terraform apply` locally with their own AWS credentials,
+# same as how this project was originally bootstrapped. Prefer
+# destroy-costly-resources.yml for routine cost pauses; this one is for
+# actually being done with the project.
+#
+# Destroying the role a workflow is currently authenticated as is a bit
+# self-referential - it works because the temporary STS session credentials
+# issued at the start of this job stay valid for the rest of the run even
+# after the source IAM role is deleted, but if AWS ever behaves differently
+# mid-run, the fallback is the same as above: finish the teardown locally.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy everything" to confirm - this also removes GitHub Actions AWS access'
+        required: true
+
+permissions:
+  id-token: write # required for OIDC -> AWS
+  contents: read
+
+jobs:
+  check-confirmation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify confirmation input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "destroy everything" ]; then
+            echo "Confirmation text did not match. Nothing was destroyed."
+            exit 1
+          fi
+
+  terraform-destroy-all:
+    needs: check-confirmation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Plan destroy (everything)
+        run: terraform plan -destroy -out tfplan
+
+      - name: Apply destroy
+        run: terraform apply tfplan
