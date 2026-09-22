@@ -6,7 +6,9 @@ implementation. This project's AWS output (Redshift) is checked against it.
 ## Approach
 
 Both projects build the same star schema (`dim_date`, `dim_district`, `dim_operator`,
-`dim_lease`, `dim_well`, `fact_oil_production`) and the same set of analytical views
+`dim_lease`, `dim_well`, `fact_oil_production` — full model, grain, and key reasoning in the
+original project's [`docs/star_schema.md`](https://github.com/Shavril/texas-oil-data-platform/blob/main/docs/star_schema.md))
+and the same set of analytical views
 (`total_oil_production_by_lease_id_view`, `total_oil_production_by_month_and_district_code_view`,
 `total_oil_production_by_month_and_county_view`, `wells_view`, `oil_production_violations_view`)
 from identical business logic, so the same query pointed at each warehouse's own copy of a
@@ -30,6 +32,10 @@ concept, only district/county/lease/well/operator, so there is nothing to compar
 Because both warehouses only agree if they were loaded from the same underlying data, this
 is a live comparison (querying both warehouses each run), not a check against a fixed
 expected value. 
+
+SQL dialect differences that came up porting the Redshift-facing SQL from BigQuery are
+documented in the main [`README.md`](../README.md#architectural-decisions), under
+Architectural decisions.
 
 ## Running it
 

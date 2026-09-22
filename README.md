@@ -20,7 +20,7 @@ to the original; only the cloud-facing infrastructure changes.
 ## Results
 
 - Ported the cloud storage and data warehouse layer from **GCS + BigQuery** to **S3 + Redshift Serverless**, keeping the local pipeline, star schema, and Data Studio dashboard unchanged
-- **Proved analytical equivalence, not just that it runs**: 6 canonical checks (row counts, total production, production by lease/district/county/operator) comparing live BigQuery and Redshift output — all match exactly (see [Validation](#validation-proving-the-migration-preserved-behavior))
+- **Proved analytical equivalence, not just that it runs**: 6 canonical checks (row counts, total production, production by lease/district/county/operator) comparing live BigQuery and Redshift output on **1.6M+ production records and 623K wells** — all match exactly (see [Validation](#validation-proving-the-migration-preserved-behavior))
 - **Zero long-lived AWS credentials anywhere** — local development uses the standard AWS credential chain, GitHub Actions authenticates via OIDC federation to a short-lived IAM role
 - **Terraform-managed AWS infrastructure** (S3, Redshift Serverless, IAM, OIDC, security groups)
 - Validated a full **destroy → rebuild → re-run** cycle end to end through GitHub Actions
@@ -169,6 +169,44 @@ versioned/encrypted bucket outside this config's management, with S3-native lock
 
 </details>
 
+<details>
+<summary><strong>What SQL dialect differences came up porting BigQuery to Redshift?</strong></summary>
+
+Same business logic, different SQL dialect — porting the Redshift-facing SQL
+(`transform/views.py`, `transform/star_schema.py`, `transform/districts.py`, `load/redshift.py`)
+from BigQuery needed these translations. The local DuckDB transform SQL is unaffected — it's
+unchanged from the original project and never touches Redshift.
+
+- **No `CREATE OR REPLACE TABLE`.** Redshift has no equivalent; tables use
+  `DROP TABLE IF EXISTS` + `CREATE TABLE ... AS SELECT` instead — except tables a view
+  depends on (see below), which need `TRUNCATE` + `INSERT INTO ... SELECT`.
+  `CREATE OR REPLACE VIEW` *is* supported, so views stayed one statement.
+- **Multi-row `VALUES` table constructor fails.** BigQuery's `STRUCT`/`UNNEST` literal-rows
+  pattern was first ported to Redshift's `SELECT * FROM (VALUES (...), (...), ...) AS t(cols)`
+  — standard Postgres syntax, and Redshift is Postgres-derived, so it looked safe. It isn't:
+  Redshift's parser only accepts a single row there and fails with a syntax error at the
+  second row's comma. Fixed with `UNION ALL` of single-row `SELECT`s instead
+  (`transform/districts.py:build_district_lookup_sql`), caught only by running the generated
+  SQL against a live Redshift Serverless workgroup.
+- **`DROP TABLE` fails once a view depends on it.** The star-schema tables were originally
+  DROP + CREATE too, until `transform/views.py`'s views were built on top of them — after
+  that, every refresh failed with `cannot drop table ... because other objects depend on it`
+  (Redshift's catalog tracks view→table dependencies by object ID; BigQuery has no such
+  restriction). Fixed the same way as above: `TRUNCATE` + `INSERT INTO ... SELECT`
+  (`transform/star_schema.py:build_star_schema_table_sql`), which preserves the table's
+  identity so dependent views keep working across every refresh.
+- **`FORMAT_DATE('%B', d)` → `TRIM(TO_CHAR(d, 'Month'))`** for the month name in `dim_date`.
+- **`SAFE_DIVIDE(a, b)` → `a::FLOAT / NULLIF(b, 0)`** for the overproduction ratio in
+  `oil_production_violations_view`.
+- **`CONCAT(a, b, c)` → `||`, in the Redshift-facing SQL.** Redshift's `CONCAT` only takes 2
+  arguments; `||` was used instead, for consistency rather than mixing both.
+- **`CAST(x AS STRING)` → `CAST(x AS VARCHAR)`.**
+- **Redshift's `COPY` needs the target table to already exist** — unlike BigQuery's
+  `load_table_from_uri`, which infers a schema from the Parquet file. Explicit `CREATE TABLE`
+  DDL was written for the 3 raw tables (`load/redshift.py`'s `_RAW_TABLE_DDL`).
+
+</details>
+
 ## Validation: proving the migration preserved behavior
 
 The GCP project is treated as the reference implementation. `scripts/compare_gcp_aws.py`
@@ -217,7 +255,7 @@ security group — is free to leave running indefinitely.
 
 - **`deploy-terraform`** — `terraform init/plan/apply`, plus a safeguard step that grants the
   Redshift system privileges the pipeline needs regardless of which identity currently holds
-  superuser (see [Architectural decisions](#architectural-decisions)).
+  superuser (whether local run or GitHub Actions).
 - **`destroy-costly-resources`** — tears down just Redshift Serverless and S3 (the two billed
   resources), leaving IAM/OIDC/security groups intact so `deploy-terraform` can rebuild
   everything on demand.
@@ -247,8 +285,9 @@ chain, not just each layer tested on its own.
 
 ## CI/CD
 
-`ci.yml` runs the test suite, lint, and type-check on every push and pull request against
-`main`. The three Terraform workflows above are `workflow_dispatch`-only — deploying or
+CI: `ci.yml` runs the test suite, lint, and type-check on every push and pull request against
+`main`.  
+CD: The three Terraform workflows above are `workflow_dispatch`-only — deploying or
 tearing down real AWS infrastructure never happens automatically on a push.
 
 ## Tech stack
