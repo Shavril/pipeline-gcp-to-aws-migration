@@ -3,7 +3,7 @@
 TRUNCATE + INSERT INTO ... SELECT over the already-Redshift-resident
 analytics tables (oil_production, wells, lease_operators, rrc_districts) --
 materialized into a proper fact/dimension shape instead of an ad-hoc
-join-at-query-time. transform/views.py's Looker-Studio-facing views read
+join-at-query-time. transform/views.py's Data-Studio-facing views read
 these tables rather than the raw analytics tables directly (verified
 byte-for-byte identical output against the pre-rewrite views before that
 changeover shipped) -- this is the one place those joins/approximations are
@@ -128,7 +128,7 @@ def build_star_schema_table_sql(
 ) -> str:
     """Build TRUNCATE + INSERT INTO ... SELECT statements for one of STAR_SCHEMA_DEFINITIONS.
 
-    Not DROP + CREATE: transform/views.py's Looker Studio-facing views are
+    Not DROP + CREATE: transform/views.py's Data Studio-facing views are
     built on top of these tables, and Redshift refuses to DROP a table that
     a view depends on ("cannot drop table ... because other objects depend
     on it"). TRUNCATE + INSERT preserves the table's identity, so

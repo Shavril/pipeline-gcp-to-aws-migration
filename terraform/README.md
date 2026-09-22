@@ -2,7 +2,7 @@
 
 Codifies the AWS resources this project's local pipeline depends on: S3 bucket, Redshift
 Serverless namespace/workgroup, the IAM role Redshift uses to read S3, the security
-group that lets Looker Studio's native connector reach Redshift, and the OIDC setup that
+group that lets Data Studio's native connector reach Redshift, and the OIDC setup that
 lets GitHub Actions deploy this Terraform config without any long-lived AWS credentials.
 
 Every resource here was built and verified manually first, then imported
@@ -11,8 +11,7 @@ the live resources.
 
 ## Prerequisites: IAM permissions for whoever runs Terraform
 
-The local dev IAM user that runs `terraform` here needs this permission set. It was
-discovered during a `destroy`/`apply` test.
+The local dev IAM user that runs `terraform` here needs this permission set.
 
 **AWS managed policies, attached directly:**
 - `AmazonS3FullAccess`
@@ -100,6 +99,7 @@ DynamoDB table needed.
 ```
 terraform init
 terraform plan   # should show no changes if nothing's drifted
+terraform apply
 ```
 
 Only run `terraform apply` after reviewing the plan - most changes here touch real,
@@ -163,8 +163,8 @@ workflows reflect this split:
   workflow runs as. Requires typing `destroy everything` into the confirmation input.
   Use this only when actually done with the project - not for routine pauses.
 
-Before either one, if you want to keep the Looker Studio report working afterward, convert
-its data sources to Looker Studio's "Extract Data" snapshot first (freezes the report's
+Before either one, if you want to keep the Data Studio report working afterward, convert
+its data sources to Data Studio's "Extract Data" snapshot first (freezes the report's
 data independently of Redshift - see the repo's project notes on this). Neither destroy
 touches the database-level objects listed above - they disappear along with the
 namespace/workgroup automatically, nothing extra to clean up there.

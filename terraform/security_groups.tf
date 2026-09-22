@@ -1,16 +1,16 @@
-# Dedicated security group for Looker Studio's native Redshift connector,
+# Dedicated security group for Data Studio's native Redshift connector,
 # kept separate from the default VPC security group so this one narrow
 # opening is easy to find, audit, and remove independently.
 #
-# Why this exists: Looker Studio's connector needs a direct network
+# Why this exists: Data Studio's connector needs a direct network
 # connection (it doesn't support the Redshift Data API/IAM auth used
 # everywhere else in this project, which required making the workgroup publicly
 # accessible (see redshift.tf). This security group is what keeps that
-# opening narrow: only Looker Studio's own published IP range, only the
+# opening narrow: only Data Studio's own published IP range, only the
 # Redshift port.
 resource "aws_security_group" "looker_studio" {
   name        = "${var.project_name}-looker-studio"
-  description = "Allow Looker Studio published IP range to reach Redshift Serverless on 5439"
+  description = "Allow Data Studio published IP range to reach Redshift Serverless on 5439"
   vpc_id      = data.aws_vpc.default.id
 
   tags = {
@@ -18,7 +18,7 @@ resource "aws_security_group" "looker_studio" {
   }
 }
 
-# Looker Studio's published IP range for its Amazon Redshift connector
+# Data Studio's published IP range for its Amazon Redshift connector
 # (global infrastructure). Source:
 # https://docs.cloud.google.com/looker/docs/studio/connect-to-amazon-redshift
 resource "aws_vpc_security_group_ingress_rule" "looker_studio_redshift" {

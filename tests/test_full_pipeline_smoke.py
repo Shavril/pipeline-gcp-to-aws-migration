@@ -124,7 +124,7 @@ def test_full_pipeline_runs_end_to_end_against_real_infrastructure():
     lease_operators_redshift(lease_operators_s3_uri)
     wells_redshift(wells_s3_uri)
 
-    # District lookup, star schema, and Looker Studio views -- the views
+    # District lookup, star schema, and Data Studio views - the views
     # read the star schema, not the raw analytics tables, so it has to run first
     district_lookup_table()
     dim_date()

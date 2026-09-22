@@ -1,4 +1,4 @@
-"""Redshift-warehouse-facing view assets (Looker Studio-facing, currently).
+"""Redshift-warehouse-facing view assets (Data Studio-facing, currently).
 
 Kept separate from assets.py's data pipeline assets since this file is
 expected to grow as more views/warehouse-side objects are added on top of

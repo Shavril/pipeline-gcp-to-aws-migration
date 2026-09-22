@@ -98,10 +98,10 @@ def _ensure_looker_reader(workgroup: str, database: str, schema: str, password: 
     """Create the looker_reader database user if it doesn't exist, and (re-)grant it access.
 
     looker_reader is a plain database user/password, not an IAM identity --
-    Looker Studio's connector needs a real password, unlike everything else
+    Data Studio's connector needs a real password, unlike everything else
     in this project (see config.py's redshift_looker_reader_password).
     CREATE USER only ever runs once: the password is never rotated here, so
-    Looker Studio's saved connection keeps working across every pipeline
+    Data Studio's saved connection keeps working across every pipeline
     run, and survives a full namespace rebuild (e.g. terraform destroy +
     apply) as long as the configured password doesn't change.
     """

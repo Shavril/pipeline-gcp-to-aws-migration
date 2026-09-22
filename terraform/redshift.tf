@@ -1,10 +1,10 @@
 # Redshift Serverless replaces BigQuery, because it has free connector to
-# existing Looker Studio dashboard.
+# existing Data Studio dashboard.
 #
 # No admin username/password is set (no manage_admin_password either) -
 # deliberately, so the only way in is the standard AWS credential chain via
 # the Redshift Data API (IAM auth). The schema/tables/views/grants and
-# the looker_reader database user created for Looker Studio's connector
+# the looker_reader database user created for Data Studio's connector
 # are in-database SQL objects, not AWS resources - they're managed by
 # the pipeline code (oil_pipeline.load.redshift) and one-time setup SQL.
 resource "aws_redshiftserverless_namespace" "pipeline" {
@@ -17,8 +17,8 @@ resource "aws_redshiftserverless_namespace" "pipeline" {
 # Base capacity is the current AWS minimum (4 RPU, ~$0.375/RPU-hour in
 # us-east-1). Billed per-second while actively processing queries only.
 #
-# publicly_accessible = true and the dedicated Looker Studio security group
-# (see security_groups.tf) exist only because Looker Studio's native
+# publicly_accessible = true and the dedicated Data Studio security group
+# (see security_groups.tf) exist only because Data Studio's native
 # connector needs direct network access - everything else in this project
 # (the pipeline's own S3->Redshift load) uses the Data API and never
 # touches the network path this opens.

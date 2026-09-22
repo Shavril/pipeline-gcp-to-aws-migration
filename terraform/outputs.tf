@@ -19,7 +19,7 @@ output "redshift_s3_role_arn" {
 }
 
 output "redshift_endpoint" {
-  description = "Host:port for Looker Studio's Basic connection."
+  description = "Host:port for Data Studio's Basic connection."
   value       = "${aws_redshiftserverless_workgroup.pipeline.endpoint[0].address}:${aws_redshiftserverless_workgroup.pipeline.endpoint[0].port}"
 }
 

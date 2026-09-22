@@ -43,10 +43,10 @@ class Settings(BaseSettings):
     # be associated with the Redshift Serverless namespace.
     redshift_s3_role_arn: str
     # Password for the looker_reader database user (see load/redshift.py's
-    # ensure_schema) -- Looker Studio's connector needs a real database
+    # ensure_schema) - Data Studio's connector needs a real database
     # password, not IAM auth. Never rotated automatically: changing this
     # value does NOT change looker_reader's actual password (CREATE USER
-    # only runs once), so if you rotate it, update it in Looker Studio's
+    # only runs once), so if you rotate it, update it in Data Studio's
     # saved connection too.
     redshift_looker_reader_password: str
 

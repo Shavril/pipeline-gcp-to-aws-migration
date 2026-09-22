@@ -1,4 +1,4 @@
-"""Looker Studio-facing Redshift view definitions.
+"""Data Studio-facing Redshift view definitions.
 
 Each view selects from its own source table ({table} -- fact_oil_production
 or dim_well) joined to the star-schema dimensions (dim_lease, dim_district,
@@ -65,7 +65,7 @@ ORDER BY f.report_month, dl.district_code ASC"""
 # county_fips is derived from dl.county_code the same way wells_view and
 # total_oil_production_by_lease_id_view do it, so this is the county-grain
 # counterpart of those. Kept at month grain (not pre-summed to an all-time
-# total) so the Looker Studio county map can still be sliced by a date-range
+# total) so the Data Studio county map can still be sliced by a date-range
 # control, not just show one static lifetime total per county.
 TOTAL_OIL_PRODUCTION_BY_MONTH_AND_COUNTY_VIEW_QUERY = """SELECT
   f.report_month,
@@ -85,7 +85,7 @@ ORDER BY f.report_month, dl.county_code ASC"""
 # Every column needed for all 7 wells visualizations (map, county/district
 # breakdown, wells-drilled-per-year, active/plugged split, depth
 # distribution, wells-per-lease, land/water breakdown) is present at well
-# grain; Looker Studio does the GROUP BY / histogram bucketing per-chart on
+# grain; Data Studio does the GROUP BY / histogram bucketing per-chart on
 # top of this single view. county_fips uses the well's own county_code (not
 # dim_lease's lease-level approximation) -- a well's county is exact, only a
 # lease spanning wells in more than one county needs the approximation.
