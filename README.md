@@ -13,6 +13,19 @@ transformations, business logic, analytical model, and dashboard are kept as clo
 to the original; only the cloud-facing infrastructure changes. 
 [Find out more about the original project](https://github.com/Shavril/texas-oil-data-platform).
 
+
+## Why this project?
+
+This project demonstrates how an existing analytical data pipeline can be migrated between cloud providers while minimizing changes to business logic and proving that the migrated system preserves analytical results.
+
+Rather than rebuilding the pipeline from scratch on AWS, the migration deliberately isolates the cloud-dependent components and replaces GCS/BigQuery with S3/Redshift while keeping the extraction, transformation, data model, orchestration and dashboard behavior unchanged wherever possible.
+
+```text
+Original (GCP):  RRC → DuckDB → Parquet → GCS → BigQuery             → Data Studio
+Migrated (AWS):  RRC → DuckDB → Parquet → S3  → Redshift Serverless  → Data Studio
+```
+
+
 ![The Data Studio dashboard view](docs/images/dashboard.png)
 ![The Data Studio dashboard, now reading from Redshift instead of BigQuery](docs/images/dashboard-aws.png)
 **[View the live dashboard →](https://datastudio.google.com/reporting/d03eae0c-d131-4de7-9ce3-e53fc84aedd0)**
@@ -29,6 +42,7 @@ to the original; only the cloud-facing infrastructure changes.
 
 ## Contents
 
+- [Why this project?](#why-this-project)
 - [Results](#results)
 - [What this demonstrates](#what-this-demonstrates)
 - [Relationship to the original project](#relationship-to-the-original-project)
@@ -41,7 +55,6 @@ to the original; only the cloud-facing infrastructure changes.
 - [CI/CD](#cicd)
 - [Tech stack](#tech-stack)
 - [Repository structure](#repository-structure)
-- [Limitations and tradeoffs](#limitations-and-tradeoffs)
 - [Running it](#running-it)
 - [License](#license)
 
@@ -63,14 +76,8 @@ unmodified, and is the source of truth this project's AWS output is checked agai
 This project's core idea is simple: swap the cloud provider underneath an existing pipeline —
 GCP for AWS — without touching anything else. Everything from the RRC acquisition through the
 local DuckDB transforms and the Parquet output already runs entirely on the local machine; it
-was never GCP infrastructure to begin with, so there's nothing there to migrate.
-
-```text
-RRC website → Selenium acquisition (local) → ~11 GB raw files (local)
-    → DuckDB transformations (local) → Parquet analytical output (local)
-    → [ everything above is local, not cloud — nothing to migrate here ]
-    → cloud storage → cloud warehouse → warehouse views → Data Studio
-```
+was never GCP infrastructure to begin with, so there's nothing there to migrate. The diagram
+below shows exactly where that boundary sits.
 
 ## Architecture
 
@@ -205,6 +212,11 @@ unchanged from the original project and never touches Redshift.
   `load_table_from_uri`, which infers a schema from the Parquet file. Explicit `CREATE TABLE`
   DDL was written for the 3 raw tables (`load/redshift.py`'s `_RAW_TABLE_DDL`).
 
+**Takeaway:** cloud portability isn't just replacing SDK calls — the real compatibility risk
+sits at the warehouse layer, where superficially similar SQL features (a `VALUES` list, a
+`DROP TABLE`) behave differently under the hood, and may not be visible until
+the generated SQL actually runs against a live Redshift workgroup.
+
 </details>
 
 ## Validation: proving the migration preserved behavior
@@ -246,10 +258,23 @@ setup GitHub Actions authenticates through. Everything was verified manually fir
 imported into Terraform state — `terraform plan` shows zero diff against the live resources.
 Full details, including the exact IAM permission set required: [`terraform/README.md`](terraform/README.md).
 
-**Cost.** Redshift Serverless is the dominant real cost (pinned to the current AWS minimum of
-4 RPU, billed per-second only while processing queries); S3 costs a fraction of a cent per
-month at this project's data volume. Everything else — IAM roles, the OIDC provider, the
-security group — is free to leave running indefinitely.
+**Cost.** Actual charges from running this project, per the AWS Billing console:
+
+| Resource | Cost | Why |
+|---|---|---|
+| Redshift Serverless | $2.44 | The dominant real cost — pinned to the current AWS minimum of 4 RPU, billed per-second only while processing queries |
+| S3 | $0.00 | This project's data volume (tens of MB of Parquet) is covered by the free tier |
+| VPC | $0.16 | Not a NAT Gateway (none exists here) — see below |
+| IAM / OIDC | $0.00 | No charge for roles, policies, or the OIDC provider |
+| Security groups | $0.00 | No charge |
+| GitHub Actions | $0.00 | Within the free included minutes for a public/personal repo |
+
+The \$0.16 "VPC" line is AWS's flat public-IPv4 charge (~\$0.005/hour per
+address), not a VPC resource itself — Redshift Serverless's
+workgroup here is deliberately publicly accessible
+so Data Studio's connector can reach it, which means its endpoint holds a public IPv4 address
+for however long the namespace exists. It's billed under the VPC service in Cost Explorer
+because a public IP is a VPC-level resource.
 
 **Tearing down and rebuilding.** Three `workflow_dispatch`-only GitHub Actions workflows:
 
@@ -285,8 +310,9 @@ chain, not just each layer tested on its own.
 
 ## CI/CD
 
-CI: `ci.yml` runs the test suite, lint, and type-check on every push and pull request against
-`main`.  
+CI: `ci.yml` runs the test suite — 101 automated tests (+ 1 opt-in end-to-end smoke test,
+excluded from CI since it needs the real ~11 GB raw tapes and real cloud access) — plus lint
+and type-check, on every push and pull request against `main`.  
 CD: The three Terraform workflows above are `workflow_dispatch`-only — deploying or
 tearing down real AWS infrastructure never happens automatically on a push.
 
