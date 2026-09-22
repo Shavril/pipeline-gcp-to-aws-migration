@@ -24,6 +24,12 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.16.2",
 ]
+# Only needed to run scripts/compare_gcp_aws.py (the GCP-vs-AWS validation
+# check) - not a dependency of the pipeline itself, so it isn't in the
+# main dependency list.
+validation = [
+    "google-cloud-bigquery>=3.0",
+]
 
 [build-system]
 requires = ["hatchling"]
